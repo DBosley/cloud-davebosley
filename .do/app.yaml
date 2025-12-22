@@ -1,0 +1,13 @@
+name: cloud-davebosley
+region: sfo
+static_sites:
+  - name: cloud-davebosley
+    source_dir: /
+    index_document: index.html
+    github:
+      repo: DBosley/cloud-davebosley
+      branch: main
+      deploy_on_push: true
+domains:
+  - domain: cloud.davebosley.com
+    type: PRIMARY
