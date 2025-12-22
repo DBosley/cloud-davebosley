@@ -65,6 +65,18 @@
             integrity="sha384-HqC294x+jARmk/wUrzXlnRpiZrmiHJ4BIKph0mrcMJ/cLuMkNDHY0IjbDanCNhcU"
             crossorigin="anonymous"></script>
 
+    <!-- Auth0 SDK -->
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
+    <script>
+        const auth0Config = {
+            domain: 'dev-vs44iwncf3g80gpn.us.auth0.com',
+            clientId: 'CppEgYMYhGKGnTjpg8T9NZRu1NfluWPP',
+            authorizationParams: {
+                redirect_uri: window.location.origin
+            }
+        };
+        let auth0Client = null;
+    </script>
 
     <!-- Explorer App Style -->
     <style>
@@ -228,6 +240,21 @@
 
 <body>
 
+<!-- Login Screen -->
+<div id="auth-loading" style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
+    <h2 style="color: #167df0; margin-bottom: 1rem;">Loading...</h2>
+</div>
+
+<div id="login-screen" style="display: none; justify-content: center; align-items: center; height: 100vh; flex-direction: column; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div style="background: white; padding: 3rem; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; max-width: 400px;">
+        <h1 style="color: #333; margin-bottom: 0.5rem;">Dave's Cloud Storage</h1>
+        <p style="color: #666; margin-bottom: 2rem;">Sign in to access files</p>
+        <button id="login-button" onclick="login()" style="background: #167df0; color: white; border: none; padding: 1rem 2rem; font-size: 1rem; border-radius: 5px; cursor: pointer; width: 100%;">
+            Sign in with Google
+        </button>
+    </div>
+</div>
+
 <!-- Explorer App-->
 <div id="app" style="display: none;">
     <div :style="cssVars">
@@ -241,6 +268,11 @@
                     <h1 class="title" v-html="config.titleHTML"></h1>
                     <h2 class="subtitle" v-html="config.subtitleHTML"></h2>
                 </div>
+            </div>
+            <div class="level-right">
+                <button onclick="logout()" style="background: transparent; border: 1px solid #ccc; padding: 0.5rem 1rem; border-radius: 5px; cursor: pointer; color: #666;">
+                    Sign Out
+                </button>
             </div>
         </div>
 
@@ -1015,6 +1047,52 @@
         app.use(Buefy.default, {defaultIconPack: 'fas'})
         app.mount('#app')
     }
+
+    // Auth0 Functions
+    async function initAuth0() {
+        auth0Client = await auth0.createAuth0Client(auth0Config);
+
+        // Handle redirect callback
+        if (window.location.search.includes('code=') && window.location.search.includes('state=')) {
+            try {
+                await auth0Client.handleRedirectCallback();
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } catch (e) {
+                console.error('Error handling redirect:', e);
+            }
+        }
+
+        const isAuthenticated = await auth0Client.isAuthenticated();
+
+        document.getElementById('auth-loading').style.display = 'none';
+
+        if (isAuthenticated) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+        } else {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app').style.display = 'none';
+        }
+    }
+
+    async function login() {
+        await auth0Client.loginWithRedirect({
+            authorizationParams: {
+                connection: 'google-oauth2'
+            }
+        });
+    }
+
+    async function logout() {
+        await auth0Client.logout({
+            logoutParams: {
+                returnTo: window.location.origin
+            }
+        });
+    }
+
+    // Initialize on page load
+    initAuth0();
 </script>
 </body>
 
