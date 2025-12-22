@@ -255,6 +255,18 @@
     </div>
 </div>
 
+<div id="pending-screen" style="display: none; justify-content: center; align-items: center; height: 100vh; flex-direction: column; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div style="background: white; padding: 3rem; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; max-width: 400px;">
+        <h1 style="color: #333; margin-bottom: 0.5rem;">Access Pending</h1>
+        <p style="color: #666; margin-bottom: 1rem;">You've signed in as:</p>
+        <p id="pending-email" style="color: #167df0; font-weight: bold; margin-bottom: 2rem;"></p>
+        <p style="color: #666; margin-bottom: 2rem;">Ask Dave to approve your access.</p>
+        <button onclick="logout()" style="background: transparent; border: 1px solid #ccc; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; color: #666;">
+            Sign Out
+        </button>
+    </div>
+</div>
+
 <!-- Explorer App-->
 <div id="app" style="display: none;">
     <div :style="cssVars">
@@ -1067,10 +1079,24 @@
         document.getElementById('auth-loading').style.display = 'none';
 
         if (isAuthenticated) {
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
+            // Check if user is approved via custom claim
+            const claims = await auth0Client.getIdTokenClaims();
+            const isApproved = claims['https://cloud.davebosley.com/approved'] === true;
+
+            if (isApproved) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('pending-screen').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+            } else {
+                // Show pending approval screen
+                document.getElementById('pending-email').textContent = claims.email;
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('pending-screen').style.display = 'flex';
+                document.getElementById('app').style.display = 'none';
+            }
         } else {
             document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('pending-screen').style.display = 'none';
             document.getElementById('app').style.display = 'none';
         }
     }
