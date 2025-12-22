@@ -262,9 +262,14 @@
         <p style="color: #666; margin-bottom: 1rem;">You've signed in as:</p>
         <p id="pending-email" style="color: #167df0; font-weight: bold; margin-bottom: 2rem;"></p>
         <p style="color: #666; margin-bottom: 2rem;">Ask Dave to approve your access.</p>
-        <button onclick="logout()" style="background: transparent; border: 1px solid #ccc; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; color: #666;">
-            Sign Out
-        </button>
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+            <button onclick="relogin()" style="background: #167df0; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer;">
+                Check Again
+            </button>
+            <button onclick="logout()" style="background: transparent; border: 1px solid #ccc; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; color: #666;">
+                Sign Out
+            </button>
+        </div>
     </div>
 </div>
 
@@ -1106,6 +1111,16 @@
         await auth0Client.loginWithRedirect({
             authorizationParams: {
                 connection: 'google-oauth2'
+            }
+        });
+    }
+
+    async function relogin() {
+        // Force fresh login to get updated claims
+        await auth0Client.loginWithRedirect({
+            authorizationParams: {
+                connection: 'google-oauth2',
+                prompt: 'login'
             }
         });
     }
