@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin - Dave's Cloud Storage</title>
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 2rem;
+            margin-bottom: 1rem;
+        }
+        h1 { color: #333; margin-top: 0; }
+        .user-list { list-style: none; padding: 0; margin: 0; }
+        .user-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        .user-item:last-child { border-bottom: none; }
+        .user-email { font-weight: 500; }
+        .user-meta { color: #666; font-size: 0.85rem; }
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .btn-approve { background: #28a745; color: white; }
+        .btn-revoke { background: #dc3545; color: white; }
+        .btn-logout { background: transparent; border: 1px solid #ccc; color: #666; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status { padding: 0.25rem 0.5rem; border-radius: 3px; font-size: 0.8rem; margin-left: 0.5rem; }
+        .status-approved { background: #d4edda; color: #155724; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .loading { text-align: center; padding: 2rem; color: #666; }
+        .error { background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 5px; margin-bottom: 1rem; }
+        #auth-loading, #access-denied {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+            flex-direction: column;
+        }
+        #access-denied .card { text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="auth-loading">
+    <div class="card">
+        <h2>Loading...</h2>
+    </div>
+</div>
+
+<div id="access-denied" style="display: none;">
+    <div class="card">
+        <h1>Access Denied</h1>
+        <p>You need admin privileges to access this page.</p>
+        <button class="btn btn-logout" onclick="logout()">Sign Out</button>
+    </div>
+</div>
+
+<div id="admin-panel" class="container" style="display: none;">
+    <div class="card">
+        <div class="header">
+            <h1>User Management</h1>
+            <button class="btn btn-logout" onclick="logout()">Sign Out</button>
+        </div>
+        <div id="error-msg" class="error" style="display: none;"></div>
+        <div id="loading" class="loading">Loading users...</div>
+        <ul id="user-list" class="user-list" style="display: none;"></ul>
+    </div>
+</div>
+
+<script>
+    const auth0Config = {
+        domain: 'dev-vs44iwncf3g80gpn.us.auth0.com',
+        clientId: 'CppEgYMYhGKGnTjpg8T9NZRu1NfluWPP',
+        authorizationParams: {
+            redirect_uri: window.location.origin + '/admin.html'
+        }
+    };
+
+    // API URL - update this after deploying the API service
+    const API_URL = 'https://cloud-api.davebosley.com';
+    let auth0Client = null;
+    let accessToken = null;
+
+    async function initAuth0() {
+        auth0Client = await auth0.createAuth0Client(auth0Config);
+
+        if (window.location.search.includes('code=') && window.location.search.includes('state=')) {
+            try {
+                await auth0Client.handleRedirectCallback();
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } catch (e) {
+                console.error('Error handling redirect:', e);
+            }
+        }
+
+        const isAuthenticated = await auth0Client.isAuthenticated();
+        document.getElementById('auth-loading').style.display = 'none';
+
+        if (!isAuthenticated) {
+            await auth0Client.loginWithRedirect({
+                authorizationParams: { connection: 'google-oauth2' }
+            });
+            return;
+        }
+
+        // Check for admin role
+        const claims = await auth0Client.getIdTokenClaims();
+        const isAdmin = claims['https://cloud.davebosley.com/admin'] === true;
+
+        if (!isAdmin) {
+            document.getElementById('access-denied').style.display = 'flex';
+            return;
+        }
+
+        document.getElementById('admin-panel').style.display = 'block';
+        loadUsers();
+    }
+
+    async function loadUsers() {
+        const loading = document.getElementById('loading');
+        const userList = document.getElementById('user-list');
+        const errorMsg = document.getElementById('error-msg');
+
+        loading.style.display = 'block';
+        userList.style.display = 'none';
+        errorMsg.style.display = 'none';
+
+        try {
+            const token = await auth0Client.getTokenSilently();
+            const response = await fetch(`${API_URL}/users`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch users');
+
+            const users = await response.json();
+            renderUsers(users);
+        } catch (error) {
+            errorMsg.textContent = error.message;
+            errorMsg.style.display = 'block';
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    function renderUsers(users) {
+        const userList = document.getElementById('user-list');
+        userList.innerHTML = '';
+
+        if (users.length === 0) {
+            userList.innerHTML = '<li class="user-item">No users found</li>';
+        } else {
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.className = 'user-item';
+                li.innerHTML = `
+                    <div>
+                        <span class="user-email">${user.email}</span>
+                        <span class="status ${user.approved ? 'status-approved' : 'status-pending'}">
+                            ${user.approved ? 'Approved' : 'Pending'}
+                        </span>
+                        <div class="user-meta">Last login: ${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</div>
+                    </div>
+                    <div>
+                        ${user.approved
+                            ? `<button class="btn btn-revoke" onclick="revokeUser('${user.user_id}')">Revoke</button>`
+                            : `<button class="btn btn-approve" onclick="approveUser('${user.user_id}')">Approve</button>`
+                        }
+                    </div>
+                `;
+                userList.appendChild(li);
+            });
+        }
+        userList.style.display = 'block';
+    }
+
+    async function approveUser(userId) {
+        await updateUserApproval(userId, 'approve');
+    }
+
+    async function revokeUser(userId) {
+        await updateUserApproval(userId, 'revoke');
+    }
+
+    async function updateUserApproval(userId, action) {
+        const errorMsg = document.getElementById('error-msg');
+        errorMsg.style.display = 'none';
+
+        try {
+            const token = await auth0Client.getTokenSilently();
+            const response = await fetch(`${API_URL}/users/${encodeURIComponent(userId)}/${action}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error(`Failed to ${action} user`);
+
+            loadUsers();
+        } catch (error) {
+            errorMsg.textContent = error.message;
+            errorMsg.style.display = 'block';
+        }
+    }
+
+    async function logout() {
+        await auth0Client.logout({
+            logoutParams: { returnTo: window.location.origin }
+        });
+    }
+
+    initAuth0();
+</script>
+</body>
+</html>
