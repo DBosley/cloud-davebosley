@@ -26,8 +26,7 @@ const checkJwt = jwt({
     algorithms: ['RS256']
 }).unless({ path: ['/health'] });
 
-// Actually, for SPA we use ID tokens, not access tokens with API audience
-// Let's use a simpler approach - verify the token is from our Auth0 tenant
+// Verify access tokens from Auth0
 const verifyToken = jwt({
     secret: jwksRsa.expressJwtSecret({
         cache: true,
@@ -35,6 +34,7 @@ const verifyToken = jwt({
         jwksRequestsPerMinute: 5,
         jwksUri: `https://${AUTH0_DOMAIN}/.well-known/jwks.json`
     }),
+    audience: 'https://cloud-api.davebosley.com',
     issuer: `https://${AUTH0_DOMAIN}/`,
     algorithms: ['RS256']
 });
