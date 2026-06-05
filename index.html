@@ -928,7 +928,10 @@
                         if (this.continuationToken) {
                             bucketListApiUrl += `&continuation-token=${encodePath(this.continuationToken)}`
                         }
-                        let listBucketResultResponse = await fetch(bucketListApiUrl)
+                        // Cache-bust the directory listing so newly synced files appear immediately.
+                        // The unique param forces a CDN/edge MISS; no-store covers the browser cache.
+                        bucketListApiUrl += `&_=${Date.now()}`
+                        let listBucketResultResponse = await fetch(bucketListApiUrl, { cache: 'no-store' })
                         let listBucketResultXml = await listBucketResultResponse.text()
 
                         listBucketResult = new DOMParser().parseFromString(listBucketResultXml, "text/xml")
